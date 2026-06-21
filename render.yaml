@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: salon-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: salon-db
+    plan: free
+    databaseName: salon_marketplace
+    user: salon
