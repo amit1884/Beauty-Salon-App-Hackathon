@@ -4,6 +4,8 @@ A mobile-friendly marketplace where customers discover salons and book appointme
 
 Built with **free, open-source tools** and deployable entirely on **free hosting tiers** (Vercel + Render + Neon).
 
+> **Testing the app?** See [TESTING.md](TESTING.md) for feature descriptions and step-by-step test flows.
+
 ---
 
 ## Features
