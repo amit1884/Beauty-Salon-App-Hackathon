@@ -75,6 +75,29 @@ export interface SalonCreatePayload {
   description?: string | null;
 }
 
+export type ChatActionPayload = Record<string, string | number | boolean | null | undefined>;
+
+export interface ChatUIBlock {
+  type: string;
+  title?: string | null;
+  data: Record<string, unknown>;
+  actions?: Array<{ label: string; action: string; payload?: ChatActionPayload }>;
+}
+
+export interface ChatUIMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  ui_blocks?: ChatUIBlock[];
+}
+
+export interface ChatResponse {
+  session_id: string;
+  message: string;
+  ui_blocks: ChatUIBlock[];
+  role: string;
+}
+
 export interface ServiceCreatePayload {
   name: string;
   price: number;
@@ -172,4 +195,12 @@ export const api = {
 
   adminSetSalonStatus: (salonId: string, status: 'approved' | 'rejected' | 'pending') =>
     request<Salon>(`/api/admin/salons/${salonId}/status?status=${status}`, { method: 'PATCH' }),
+
+  agentChat: (data: {
+    message: string;
+    session_id?: string;
+    action?: string;
+    action_payload?: ChatActionPayload;
+  }) =>
+    request<ChatResponse>('/api/agent/chat', { method: 'POST', body: JSON.stringify(data) }),
 };

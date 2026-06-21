@@ -8,6 +8,7 @@ import BookingsPage from './pages/BookingsPage';
 import AccountPage from './pages/AccountPage';
 import OwnerDashboardPage from './pages/OwnerDashboardPage';
 import AdminPage from './pages/AdminPage';
+import ChatPage from './pages/ChatPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -56,6 +57,9 @@ export default function App() {
             <Route path="salons/:id" element={<SalonDetailPage />} />
             <Route path="login" element={<LoginPage />} />
             <Route path="bookings" element={<BookingsPage />} />
+            <Route path="chat" element={
+              <ProtectedRoute><ChatPage /></ProtectedRoute>
+            } />
             <Route path="account" element={
               <ProtectedRoute><AccountPage /></ProtectedRoute>
             } />

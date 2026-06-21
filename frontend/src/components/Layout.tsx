@@ -8,33 +8,50 @@ import {
   Sparkles,
   LayoutDashboard,
   Shield,
+  MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import GlobalSearch from './GlobalSearch';
 
-function getNavItems(role?: string) {
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof Home;
+  end?: boolean;
+  auth?: boolean;
+  guest?: boolean;
+};
+
+function withAssistant(items: NavItem[]): NavItem[] {
+  const chat: NavItem = { to: '/chat', label: 'AI Assistant', icon: MessageCircle, auth: true };
+  const idx = items.findIndex((i) => i.to === '/account' || i.to === '/login');
+  if (idx === -1) return [...items, chat];
+  return [...items.slice(0, idx), chat, ...items.slice(idx)];
+}
+
+function getNavItems(role?: string): NavItem[] {
   if (role === 'admin') {
-    return [
+    return withAssistant([
       { to: '/admin', label: 'Moderation', icon: Shield },
       { to: '/', label: 'Browse Salons', icon: Home, end: true },
       { to: '/account', label: 'Profile', icon: User, auth: true },
-    ];
+    ]);
   }
   if (role === 'owner') {
-    return [
+    return withAssistant([
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/bookings', label: 'Incoming Bookings', icon: CalendarDays },
       { to: '/', label: 'Browse Salons', icon: Home, end: true },
       { to: '/account', label: 'Profile', icon: User, auth: true },
-    ];
+    ]);
   }
-  return [
+  return withAssistant([
     { to: '/', label: 'Discover', icon: Home, end: true },
     { to: '/bookings', label: 'My Bookings', icon: CalendarDays },
     { to: '/account', label: 'Profile', icon: User, auth: true },
     { to: '/login', label: 'Sign In', icon: User, guest: true },
-  ];
+  ]);
 }
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -100,17 +117,20 @@ function MobileNav() {
   const items = isAdmin
     ? [
         { to: '/admin', label: 'Admin', icon: Shield },
+        { to: '/chat', label: 'AI', icon: MessageCircle },
         { to: '/', label: 'Browse', icon: Home, end: true },
         { to: '/account', label: 'Profile', icon: User },
       ]
     : isOwner
     ? [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/chat', label: 'AI', icon: MessageCircle },
         { to: '/bookings', label: 'Bookings', icon: CalendarDays },
         { to: '/account', label: 'Profile', icon: User },
       ]
     : [
         { to: '/', label: 'Home', icon: Home, end: true },
+        { to: '/chat', label: 'AI', icon: MessageCircle },
         { to: '/bookings', label: 'Bookings', icon: CalendarDays },
         { to: user ? '/account' : '/login', label: user ? 'Profile' : 'Sign In', icon: User },
       ];
@@ -155,9 +175,10 @@ export default function Layout() {
   const { user } = useAuth();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  const isChatPage = location.pathname === '/chat';
   const isOwner = user?.role === 'owner';
   const isAdmin = user?.role === 'admin';
-  const showSearch = !isOwner && !isAdmin || location.pathname === '/';
+  const showSearch = (!isOwner && !isAdmin || location.pathname === '/') && !isChatPage;
 
   if (isLoginPage) {
     return (
@@ -176,7 +197,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className={cn('min-h-screen flex', isChatPage && 'h-dvh overflow-hidden')}>
       <aside className="hidden md:flex w-72 shrink-0 flex-col bg-linear-to-b from-brand-800 via-brand-700 to-brand-900 text-white">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -211,7 +232,7 @@ export default function Layout() {
         )}
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={cn('flex-1 flex flex-col min-w-0', isChatPage && 'min-h-0 overflow-hidden')}>
         <header className="md:hidden sticky top-0 z-40 glass border-b border-stone-200/60 px-4 py-3 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -230,6 +251,8 @@ export default function Layout() {
         <header className="hidden md:flex sticky top-0 z-40 glass border-b border-stone-200/60 px-8 py-4 items-center justify-between gap-6">
           {showSearch ? (
             <GlobalSearch />
+          ) : isChatPage ? (
+            <p className="text-sm text-stone-500">AI Assistant</p>
           ) : (
             <p className="text-sm text-stone-500">
               {location.pathname === '/dashboard' ? 'Manage your salon' : 'Owner portal'}
@@ -249,7 +272,12 @@ export default function Layout() {
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-24 md:pb-8">
+        <main
+          className={cn(
+            'flex-1 flex flex-col min-h-0',
+            isChatPage ? 'overflow-hidden pb-0 md:pb-0' : 'overflow-y-auto pb-24 md:pb-8',
+          )}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -257,7 +285,12 @@ export default function Layout() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
-              className="page-enter max-w-6xl mx-auto px-4 md:px-8 py-6"
+              className={cn(
+                'page-enter max-w-6xl mx-auto w-full',
+                isChatPage
+                  ? 'flex flex-1 flex-col min-h-0 px-4 md:px-8 pt-3 md:pt-4'
+                  : 'px-4 md:px-8 py-6',
+              )}
             >
               <Outlet />
             </motion.div>

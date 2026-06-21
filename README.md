@@ -28,6 +28,14 @@ Built with **free, open-source tools** and deployable entirely on **free hosting
 - Approve or reject salons before they appear publicly
 - Filter salons by status (pending / approved / rejected)
 
+### AI Assistant (Google ADK + MCP)
+- Role-aware chat at `/chat` (customer, owner, admin)
+- **Google ADK** agents with **Gemini** and **MCP tools** connected to live DB/API data
+- **Generative UI** in chat — salon cards, slot pickers, earnings charts, action buttons trigger the next agent turn
+- Customer: search salons, book appointments via conversation
+- Owner: add salons, view/compare earnings by month/year
+- Admin: platform analytics, top clients, pending salon review
+
 ---
 
 ## Tech stack
@@ -38,6 +46,7 @@ Built with **free, open-source tools** and deployable entirely on **free hosting
 | Backend | Python 3.12, FastAPI, SQLAlchemy (async), Pydantic, Alembic |
 | Database | PostgreSQL + PostGIS (geo search) |
 | Auth | JWT (self-hosted, bcrypt passwords) |
+| AI Agent | Google ADK 2.x, Gemini, FastMCP (MCP server) |
 | Local DB | Docker Compose **or** Homebrew PostgreSQL 17 + PostGIS |
 
 ---
@@ -217,6 +226,9 @@ DATABASE_URL=postgresql+asyncpg://salon:salon@localhost:5432/salon_marketplace
 SECRET_KEY=your-long-random-secret
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=http://localhost:5173
+GOOGLE_API_KEY=your-gemini-api-key
+LLM_MODEL=gemini-2.0-flash
+MCP_SERVER_URL=http://127.0.0.1:8000/mcp
 ```
 
 | Variable | Description |
@@ -225,6 +237,9 @@ CORS_ORIGINS=http://localhost:5173
 | `SECRET_KEY` | JWT signing key — use a long random string in production |
 | `CORS_ORIGINS` | Comma-separated allowed frontend origins |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT lifetime (default: 7 days) |
+| `GOOGLE_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) key for AI chat (free tier) |
+| `LLM_MODEL` | Gemini model name for the chat agent (e.g. `gemini-2.0-flash`, `gemini-2.0-flash-lite`) |
+| `MCP_SERVER_URL` | Streamable HTTP MCP endpoint (defaults to same server `/mcp`) |
 
 ### Frontend (`frontend/.env`)
 
@@ -258,6 +273,8 @@ Interactive docs: **http://localhost:8000/docs**
 | GET | `/api/bookings/my` | Customer/Owner | My bookings / incoming bookings |
 | GET | `/api/admin/salons?status=pending` | Admin | List salons for moderation |
 | PATCH | `/api/admin/salons/{id}/status?status=approved` | Admin | Approve or reject salon |
+| POST | `/api/agent/chat` | Any logged-in user | AI assistant chat (ADK + MCP) |
+| — | `/mcp` | Internal | MCP server (Streamable HTTP) for ADK tools |
 
 ---
 

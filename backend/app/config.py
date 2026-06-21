@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-change-in-production"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     cors_origins: str = "http://localhost:5173"
+    google_api_key: str = ""
+    mcp_server_url: str = "http://127.0.0.1:8000/mcp"
+    llm_model: str = "gemini-2.5-flash"
 
     @property
     def cors_origin_list(self) -> list[str]:
