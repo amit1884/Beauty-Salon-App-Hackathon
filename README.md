@@ -4,7 +4,8 @@ A mobile-friendly marketplace where customers discover salons and book appointme
 
 Built with **free, open-source tools** and deployable entirely on **free hosting tiers** (Vercel + Render + Neon).
 
-> **Testing the app?** See [TESTING.md](TESTING.md) for feature descriptions and step-by-step test flows.
+> **Testing the app?** See [TESTING.md](TESTING.md) for feature descriptions and step-by-step test flows.  
+> **AI Assistant?** See [AGENT.md](AGENT.md) for architecture, setup, role capabilities, and the chat API.
 
 ---
 
@@ -29,12 +30,12 @@ Built with **free, open-source tools** and deployable entirely on **free hosting
 - Filter salons by status (pending / approved / rejected)
 
 ### AI Assistant (Google ADK + MCP)
+
+See **[AGENT.md](AGENT.md)** for full documentation (setup, architecture, generative UI, chat API, MCP server, troubleshooting).
+
 - Role-aware chat at `/chat` (customer, owner, admin)
-- **Google ADK** agents with **Gemini** and **MCP tools** connected to live DB/API data
-- **Generative UI** in chat — salon cards, slot pickers, earnings charts, action buttons trigger the next agent turn
-- Customer: search salons, book appointments via conversation
-- Owner: add salons, view/compare earnings by month/year
-- Admin: platform analytics, top clients, pending salon review
+- **Google ADK** agents with **Gemini** connected to live DB data
+- **Generative UI** — salon cards, slot pickers, earnings charts; taps trigger the next agent turn
 
 ---
 
@@ -227,7 +228,7 @@ SECRET_KEY=your-long-random-secret
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=http://localhost:5173
 GOOGLE_API_KEY=your-gemini-api-key
-LLM_MODEL=gemini-2.0-flash
+LLM_MODEL=gemini-2.5-flash
 MCP_SERVER_URL=http://127.0.0.1:8000/mcp
 ```
 
@@ -238,7 +239,7 @@ MCP_SERVER_URL=http://127.0.0.1:8000/mcp
 | `CORS_ORIGINS` | Comma-separated allowed frontend origins |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT lifetime (default: 7 days) |
 | `GOOGLE_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) key for AI chat (free tier) |
-| `LLM_MODEL` | Gemini model name for the chat agent (e.g. `gemini-2.0-flash`, `gemini-2.0-flash-lite`) |
+| `LLM_MODEL` | Gemini model name for the chat agent (e.g. `gemini-2.5-flash`, `gemini-2.5-flash-lite`) — see [AGENT.md](AGENT.md) |
 | `MCP_SERVER_URL` | Streamable HTTP MCP endpoint (defaults to same server `/mcp`) |
 
 ### Frontend (`frontend/.env`)
@@ -273,7 +274,7 @@ Interactive docs: **http://localhost:8000/docs**
 | GET | `/api/bookings/my` | Customer/Owner | My bookings / incoming bookings |
 | GET | `/api/admin/salons?status=pending` | Admin | List salons for moderation |
 | PATCH | `/api/admin/salons/{id}/status?status=approved` | Admin | Approve or reject salon |
-| POST | `/api/agent/chat` | Any logged-in user | AI assistant chat (ADK + MCP) |
+| POST | `/api/agent/chat` | Any logged-in user | AI assistant chat — see [AGENT.md](AGENT.md) |
 | — | `/mcp` | Internal | MCP server (Streamable HTTP) for ADK tools |
 
 ---
@@ -397,7 +398,7 @@ cd frontend && npm run lint
 - [ ] Payment integration (Razorpay / Stripe test mode)
 - [ ] Customer review submission UI
 - [ ] Salon photo uploads
-- [ ] AI-powered search & recommendations (Google ADK)
+- [x] AI-powered chat assistant with generative UI ([AGENT.md](AGENT.md))
 
 ---
 
