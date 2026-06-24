@@ -12,11 +12,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { api, type Review, type Salon, type Service, type Slot } from '../lib/api';
+import { homePathWithCity } from '../lib/cityStorage';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
-import { cn, formatDate, formatPrice, formatTime, salonGradient } from '../lib/utils';
+import { cn, formatDate, formatPrice, formatSalonGender, formatTime, salonGradient } from '../lib/utils';
 
 type Step = 1 | 2 | 3;
 
@@ -24,6 +25,7 @@ export default function SalonDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const homeTo = homePathWithCity();
   const [salon, setSalon] = useState<Salon | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -35,6 +37,12 @@ export default function SalonDetailPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'book' | 'reviews' | 'services'>('book');
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewHover, setReviewHover] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -76,6 +84,38 @@ export default function SalonDetailPage() {
     }
   };
 
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!salon || reviewRating < 1) {
+      setReviewMessage('Please select a star rating');
+      return;
+    }
+
+    setSubmittingReview(true);
+    setReviewMessage('');
+    try {
+      const created = await api.createReview(salon.id, {
+        rating: reviewRating,
+        comment: reviewComment.trim() || undefined,
+      });
+      setReviews((prev) => [created, ...prev]);
+      setReviewRating(0);
+      setReviewComment('');
+      setReviewSubmitted(true);
+      setReviewMessage('');
+      const updated = await api.getSalon(salon.id);
+      setSalon(updated);
+    } catch (err) {
+      setReviewMessage(err instanceof Error ? err.message : 'Could not submit review');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -91,7 +131,7 @@ export default function SalonDetailPage() {
     return (
       <div className="text-center py-20">
         <p className="text-stone-500">{message || 'Salon not found'}</p>
-        <Link to="/" className="text-brand-600 text-sm mt-4 inline-block">← Back to home</Link>
+        <Link to={homeTo} className="text-brand-600 text-sm mt-4 inline-block">← Back to home</Link>
       </div>
     );
   }
@@ -100,6 +140,8 @@ export default function SalonDetailPage() {
   const isOwner = user?.role === 'owner';
   const isMySalon = !!(user && salon.owner_id === user.id);
   const canBook = !user || user.role === 'customer';
+  const canReview = user?.role === 'customer' && !isMySalon;
+  const hasReviewed = !!(user && reviews.some((r) => r.customer_id === user.id));
   const steps = [
     { num: 1 as Step, label: 'Service' },
     { num: 2 as Step, label: 'Time' },
@@ -115,7 +157,7 @@ export default function SalonDetailPage() {
   return (
     <div className="space-y-6 pb-8">
       <Link
-        to="/"
+        to={homeTo}
         className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-brand-600 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" /> Back to salons
@@ -131,6 +173,9 @@ export default function SalonDetailPage() {
         <div className="absolute bottom-0 inset-x-0 p-6 md:p-8 bg-linear-to-t from-black/60 via-black/30 to-transparent">
           <div className="flex items-end justify-between gap-4">
             <div>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <Badge variant="muted">{formatSalonGender(salon.gender)}</Badge>
+              </div>
               <h1 className="font-display text-3xl md:text-4xl font-semibold text-white">{salon.name}</h1>
               <div className="flex items-center gap-1.5 mt-2 text-white/80 text-sm">
                 <MapPin className="w-4 h-4" />
@@ -440,6 +485,93 @@ export default function SalonDetailPage() {
             exit={{ opacity: 0, x: -12 }}
             className="space-y-4 max-w-2xl"
           >
+            {canReview && !hasReviewed && (
+              <form
+                onSubmit={handleSubmitReview}
+                className="p-5 rounded-2xl bg-white border border-stone-100 shadow-sm space-y-4"
+              >
+                <div>
+                  <h3 className="font-semibold text-stone-900">Write a review</h3>
+                  <p className="text-sm text-stone-500 mt-0.5">Share your experience at {salon.name}</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-stone-700">Rating</label>
+                  <div className="mt-2 flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const value = i + 1;
+                      const active = value <= (reviewHover || reviewRating);
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setReviewRating(value)}
+                          onMouseEnter={() => setReviewHover(value)}
+                          onMouseLeave={() => setReviewHover(0)}
+                          className="p-1 rounded-lg transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
+                          aria-label={`${value} star${value !== 1 ? 's' : ''}`}
+                        >
+                          <Star
+                            className={cn(
+                              'w-7 h-7 transition-colors',
+                              active ? 'fill-gold-400 text-gold-400' : 'text-stone-300',
+                            )}
+                          />
+                        </button>
+                      );
+                    })}
+                    {reviewRating > 0 && (
+                      <span className="ml-2 text-sm text-stone-500">{reviewRating} / 5</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="review-comment" className="text-sm font-medium text-stone-700">
+                    Comment <span className="text-stone-400 font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    id="review-comment"
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="What did you like? How was the service?"
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
+                  />
+                </div>
+
+                {reviewMessage && (
+                  <p className={cn(
+                    'text-sm',
+                    reviewMessage.startsWith('Thanks') ? 'text-green-600' : 'text-red-600',
+                  )}>
+                    {reviewMessage}
+                  </p>
+                )}
+
+                <Button type="submit" loading={submittingReview} disabled={reviewRating < 1}>
+                  Submit review
+                </Button>
+              </form>
+            )}
+
+            {!user && (
+              <div className="p-5 rounded-2xl bg-brand-50 border border-brand-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-brand-800">Sign in to leave a review</p>
+                <Button size="sm" onClick={() => navigate('/login')}>Sign in</Button>
+              </div>
+            )}
+
+            {reviewSubmitted && (
+              <div className="p-4 rounded-2xl bg-green-50 border border-green-100 text-sm text-green-700">
+                Thanks for your review!
+              </div>
+            )}
+
+            {canReview && hasReviewed && !reviewSubmitted && (
+              <p className="text-sm text-stone-500 px-1">You&apos;ve already reviewed this salon.</p>
+            )}
+
             {reviews.length === 0 ? (
               <div className="text-center py-12 rounded-2xl bg-white border border-stone-100">
                 <MessageSquare className="w-10 h-10 text-stone-300 mx-auto mb-3" />

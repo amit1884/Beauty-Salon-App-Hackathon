@@ -34,6 +34,91 @@ function ActionButtons({
   );
 }
 
+function formatInr(value: number): string {
+  return value.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+type PeriodStat = { period: string; earnings: number; bookings: number };
+
+function ComparisonBarChart({
+  periodA,
+  periodB,
+  delta,
+  pct,
+}: {
+  periodA: PeriodStat;
+  periodB: PeriodStat;
+  delta?: number;
+  pct?: number | null;
+}) {
+  const max = Math.max(periodA.earnings, periodB.earnings, 1);
+  const periods = [periodA, periodB];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-center gap-6 sm:gap-10 h-44 px-2">
+        {periods.map((p, index) => {
+          const heightPct = Math.max(8, (p.earnings / max) * 100);
+          const isSecond = index === 1;
+          return (
+            <div key={p.period} className="flex flex-col items-center gap-2 flex-1 max-w-[120px]">
+              <span className="text-xs font-semibold text-stone-700">₹{formatInr(p.earnings)}</span>
+              <div className="w-full flex items-end justify-center h-28">
+                <div
+                  className={`w-14 sm:w-16 rounded-t-lg transition-all ${
+                    isSecond ? 'bg-brand-500' : 'bg-brand-300'
+                  }`}
+                  style={{ height: `${heightPct}%` }}
+                  title={`${p.period}: ₹${formatInr(p.earnings)}`}
+                />
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-medium text-stone-800">{p.period}</p>
+                <p className="text-[11px] text-stone-500">{p.bookings} bookings</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {delta != null && (
+        <p
+          className={`text-sm flex items-center justify-center gap-1 ${
+            delta >= 0 ? 'text-emerald-600' : 'text-red-600'
+          }`}
+        >
+          {delta >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          ₹{formatInr(Math.abs(delta))} ({pct != null ? `${pct}%` : '—'}) vs prior period
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EarningsTrendChart({
+  rows,
+}: {
+  rows: Array<{ period: string; earnings: number; bookings: number }>;
+}) {
+  const max = Math.max(...rows.map((r) => r.earnings), 1);
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div key={row.period} className="flex items-center gap-3">
+          <span className="text-xs text-stone-500 w-16 shrink-0">{row.period}</span>
+          <div className="flex-1 h-7 bg-stone-100 rounded-md overflow-hidden">
+            <div
+              className="h-full bg-brand-500 rounded-md min-w-[4px]"
+              style={{ width: `${Math.max(4, (row.earnings / max) * 100)}%` }}
+            />
+          </div>
+          <span className="text-sm font-medium w-20 text-right shrink-0">₹{formatInr(row.earnings)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function GenerativeBlock({ block, onAction, disabled }: Props) {
   const salons = (block.data.salons as Array<Record<string, unknown>>) ?? block.data.items as Array<Record<string, unknown>> ?? [];
   const slots = (block.data.slots as Array<Record<string, unknown>>) ?? [];
@@ -94,7 +179,7 @@ export default function GenerativeBlock({ block, onAction, disabled }: Props) {
     return (
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
         {block.title && <h3 className="font-medium mb-3">{block.title}</h3>}
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           {services.map((svc) => (
             <button
               key={String(svc.id)}
@@ -112,10 +197,10 @@ export default function GenerativeBlock({ block, onAction, disabled }: Props) {
                   `${String(svc.name)} — ₹${String(svc.price)}`,
                 )
               }
-              className="w-full text-left p-3 rounded-xl border border-stone-100 hover:border-brand-200 hover:bg-brand-50/50 disabled:opacity-50"
+              className="flex w-full items-center justify-between gap-3 text-left p-3 rounded-xl border border-stone-100 hover:border-brand-200 hover:bg-brand-50/50 disabled:opacity-50"
             >
               <span className="font-medium">{String(svc.name)}</span>
-              <span className="text-brand-600 ml-2">₹{String(svc.price)}</span>
+              <span className="text-brand-600 shrink-0">₹{String(svc.price)}</span>
             </button>
           ))}
         </div>
@@ -188,48 +273,41 @@ export default function GenerativeBlock({ block, onAction, disabled }: Props) {
     );
   }
 
-  if (block.type === 'earnings_chart' || block.type === 'comparison_chart') {
-    const byMonth = (block.data.by_month as Array<{ period: string; earnings: number; bookings: number }>) ?? [];
-    const periodA = block.data.period_a as { period: string; earnings: number; bookings: number } | undefined;
-    const periodB = block.data.period_b as { period: string; earnings: number; bookings: number } | undefined;
+  if (block.type === 'comparison_chart') {
+    const periodA = block.data.period_a as PeriodStat | undefined;
+    const periodB = block.data.period_b as PeriodStat | undefined;
     const delta = block.data.earnings_change as number | undefined;
     const pct = block.data.earnings_change_percent as number | null | undefined;
 
+    if (!periodA || !periodB) return null;
+
     return (
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-        {block.title && <h3 className="font-medium mb-3">{block.title}</h3>}
-        {byMonth.length > 0 && (
-          <div className="space-y-2">
-            {byMonth.map((row) => (
-              <div key={row.period} className="flex items-center gap-3">
-                <span className="text-xs text-stone-500 w-16">{row.period}</span>
-                <div className="flex-1 h-6 bg-stone-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-brand-500 rounded-full"
-                    style={{ width: `${Math.min(100, (row.earnings / (byMonth.at(-1)?.earnings || 1)) * 100)}%` }}
-                  />
-                </div>
-                <span className="text-sm font-medium w-20 text-right">₹{row.earnings}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {periodA && periodB && (
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            {[periodA, periodB].map((p) => (
-              <div key={p.period} className="p-3 rounded-xl bg-stone-50 text-center">
-                <p className="text-xs text-stone-500">{p.period}</p>
-                <p className="text-lg font-semibold text-brand-700">₹{p.earnings}</p>
-                <p className="text-xs text-stone-500">{p.bookings} bookings</p>
-              </div>
-            ))}
-          </div>
-        )}
-        {delta != null && (
-          <p className={`mt-3 text-sm flex items-center gap-1 ${delta >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {delta >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            ₹{Math.abs(delta)} ({pct != null ? `${pct}%` : '—'}) vs prior period
+        {block.title && <h3 className="font-medium mb-4 text-stone-900">{block.title}</h3>}
+        <ComparisonBarChart periodA={periodA} periodB={periodB} delta={delta} pct={pct} />
+        <ActionButtons actions={block.actions} onAction={onAction} disabled={disabled} />
+      </div>
+    );
+  }
+
+  if (block.type === 'earnings_chart') {
+    const byMonth = (block.data.by_month as Array<{ period: string; earnings: number; bookings: number }>) ?? [];
+    const total = block.data.total_earnings as number | undefined;
+    const count = block.data.booking_count as number | undefined;
+
+    return (
+      <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        {block.title && <h3 className="font-medium mb-2 text-stone-900">{block.title}</h3>}
+        {total != null && (
+          <p className="text-sm text-stone-600 mb-4">
+            Total ₹{formatInr(total)}
+            {count != null ? ` · ${count} bookings` : ''}
           </p>
+        )}
+        {byMonth.length > 0 ? (
+          <EarningsTrendChart rows={byMonth} />
+        ) : (
+          <p className="text-sm text-stone-500">No monthly breakdown for this period.</p>
         )}
         <ActionButtons actions={block.actions} onAction={onAction} disabled={disabled} />
       </div>

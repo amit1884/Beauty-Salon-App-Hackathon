@@ -34,12 +34,15 @@ class UIBlock(BaseModel):
     actions: list[ChatAction] = Field(default_factory=list)
 
 
+class AgentModelOutput(BaseModel):
+    """Minimal schema sent to the LLM — ui_blocks are built server-side from tool results."""
+
+    message: str
+
+
 class AgentChatResponse(BaseModel):
-    message: str = Field(description="Friendly conversational reply for the user")
-    ui_blocks: list[UIBlock] = Field(
-        default_factory=list,
-        description="Interactive UI blocks the frontend renders (salon cards, charts, buttons)",
-    )
+    message: str
+    ui_blocks: list[UIBlock] = Field(default_factory=list)
 
 
 class ChatRequest(BaseModel):

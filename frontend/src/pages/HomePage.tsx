@@ -1,94 +1,44 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Search, Navigation, SlidersHorizontal } from 'lucide-react';
+import { Navigation, Search, SlidersHorizontal } from 'lucide-react';
 import { api, type Salon } from '../lib/api';
 import SalonCard from '../components/SalonCard';
 import { SalonCardSkeleton } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
+import { useSelectedCity } from '../hooks/useSelectedCity';
 import { cn, SERVICE_CATEGORIES } from '../lib/utils';
 
 export default function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const city = searchParams.get('city') ?? '';
+  const { city, detecting } = useSelectedCity();
   const category = searchParams.get('category') ?? '';
 
   const [salons, setSalons] = useState<Salon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [usingLocation, setUsingLocation] = useState(false);
-  const [localCity, setLocalCity] = useState(city);
 
-  useEffect(() => {
-    setLocalCity(city);
-  }, [city]);
-
-  const runSearch = useCallback(async (opts: { city?: string; category?: string; geo?: boolean }) => {
+  const runSearch = useCallback(async (opts: { city: string; category?: string }) => {
     setLoading(true);
     setError('');
-    const q = opts.city ?? '';
     const cat = opts.category ?? category;
 
     try {
-      const params: Record<string, string | number> = {};
-      if (q) params.city = q;
+      const params: Record<string, string> = { city: opts.city };
       if (cat) params.service_type = cat;
-
-      if (opts.geo && navigator.geolocation) {
-        setUsingLocation(true);
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            try {
-              const data = await api.listSalons({
-                ...params,
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                radius_km: 20,
-              });
-              setSalons(data);
-            } catch {
-              setError('Could not load nearby salons');
-            } finally {
-              setLoading(false);
-            }
-          },
-          () => {
-            setUsingLocation(false);
-            api.listSalons(params)
-              .then(setSalons)
-              .catch(() => setError('Failed to load salons'))
-              .finally(() => setLoading(false));
-          },
-        );
-        return;
-      }
-
-      setUsingLocation(false);
       const data = await api.listSalons(params);
       setSalons(data);
     } catch {
       setError('Failed to load salons');
     } finally {
-      if (!opts.geo) setLoading(false);
+      setLoading(false);
     }
   }, [category]);
 
-  // Run search when URL params change (including from top bar)
   useEffect(() => {
-    if (city) {
-      runSearch({ city, category });
-    } else {
-      runSearch({ geo: true, category });
-    }
+    if (!city) return;
+    runSearch({ city, category });
   }, [city, category, runSearch]);
-
-  const applyCitySearch = () => {
-    const params = new URLSearchParams(searchParams);
-    const trimmed = localCity.trim();
-    if (trimmed) params.set('city', trimmed);
-    else params.delete('city');
-    setSearchParams(params);
-  };
 
   const applyCategory = (value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -97,12 +47,7 @@ export default function HomePage() {
     setSearchParams(params);
   };
 
-  const findNearMe = () => {
-    const params = new URLSearchParams(searchParams);
-    params.delete('city');
-    setSearchParams(params);
-    runSearch({ geo: true, category });
-  };
+  const isLoading = detecting || (!city && loading) || (city && loading);
 
   return (
     <div className="space-y-8">
@@ -133,35 +78,8 @@ export default function HomePage() {
         </div>
       </motion.section>
 
-      {/* Search — synced with top bar via URL params */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
-            <input
-              className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-300 transition-all shadow-sm"
-              placeholder="Search city or area (e.g. Mumbai)"
-              value={localCity}
-              onChange={(e) => setLocalCity(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && applyCitySearch()}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={applyCitySearch} className="flex-1 sm:flex-none">
-              <Search className="w-4 h-4" /> Search
-            </Button>
-            <Button
-              variant="outline"
-              onClick={findNearMe}
-              className="bg-white"
-              title="Use my location"
-            >
-              <Navigation className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Category chips */}
+      {/* Category filters */}
+      <section>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {SERVICE_CATEGORIES.map((cat) => (
             <button
@@ -184,9 +102,11 @@ export default function HomePage() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-stone-900">
-            {usingLocation && !city ? 'Salons near you' : city ? `Salons in ${city}` : 'Featured salons'}
+            {detecting || !city
+              ? 'Finding salons near you'
+              : `Salons in ${city}`}
           </h3>
-          {!loading && (
+          {!isLoading && city && (
             <p className="text-sm text-stone-500 mt-0.5">{salons.length} salon{salons.length !== 1 ? 's' : ''} found</p>
           )}
         </div>
@@ -205,13 +125,13 @@ export default function HomePage() {
 
       {/* Salon grid */}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {loading
+        {isLoading
           ? Array.from({ length: 6 }).map((_, i) => <SalonCardSkeleton key={i} />)
           : salons.map((salon, i) => <SalonCard key={salon.id} salon={salon} index={i} />)
         }
       </div>
 
-      {!loading && salons.length === 0 && !error && (
+      {!isLoading && city && salons.length === 0 && !error && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -222,10 +142,10 @@ export default function HomePage() {
           </div>
           <h3 className="font-display text-xl font-semibold text-stone-800">No salons found</h3>
           <p className="text-stone-500 text-sm mt-2 max-w-sm mx-auto">
-            Try a different city or category, or use your location to find nearby salons.
+            Try a different city from the top bar or pick another category.
           </p>
-          <Button className="mt-6" onClick={findNearMe}>
-            <Navigation className="w-4 h-4" /> Find near me
+          <Button className="mt-6" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <Navigation className="w-4 h-4" /> Change city
           </Button>
         </motion.div>
       )}

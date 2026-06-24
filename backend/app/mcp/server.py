@@ -37,9 +37,10 @@ def search_salons(
     city: str | None = None,
     service_type: str | None = None,
     min_rating: float | None = None,
+    gender: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search approved salons by city, service keyword, or minimum rating."""
-    return agent_tools.tool_search_salons(city=city, service_type=service_type, min_rating=min_rating)
+    """Search approved salons by city, service keyword, gender, or minimum rating."""
+    return agent_tools.tool_search_salons(city=city, gender=gender, service_type=service_type, min_rating=min_rating)
 
 
 @mcp.tool
@@ -90,11 +91,12 @@ def create_salon(
     city: str,
     address: str,
     description: str | None = None,
+    gender: str = "both",
 ) -> dict[str, Any]:
     """Register a new salon for the authenticated owner (pending admin approval)."""
     user_id, role = _actor()
     _require_role(role, {"owner", "admin"})
-    return agent_tools.tool_create_salon(user_id, name, city, address, description)
+    return agent_tools.tool_create_salon(user_id, name, city, address, description, gender)
 
 
 @mcp.tool

@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.review import Review
-from app.models.salon import Salon, SalonStatus, Service
+from app.models.salon import Salon, SalonGender, SalonStatus, Service
 from app.models.user import User, UserRole
 from app.schemas.salon import SalonCreate, SalonListOut, SalonOut, SalonUpdate, ServiceCreate, ServiceOut
 from app.services.auth import get_current_user
@@ -40,6 +40,7 @@ def _to_salon_out(salon: Salon) -> SalonOut:
         latitude=salon.latitude,
         longitude=salon.longitude,
         description=salon.description,
+        gender=salon.gender,
         status=salon.status,
         services=[ServiceOut.model_validate(s) for s in salon.services],
         avg_rating=avg,
@@ -50,6 +51,7 @@ def _to_salon_out(salon: Salon) -> SalonOut:
 @router.get("", response_model=list[SalonListOut])
 async def list_salons(
     city: str | None = None,
+    gender: SalonGender | None = None,
     service_type: str | None = None,
     min_price: float | None = None,
     max_price: float | None = None,
@@ -67,6 +69,9 @@ async def list_salons(
 
     if city:
         stmt = stmt.where(Salon.city.ilike(f"%{city}%"))
+
+    if gender is not None:
+        stmt = stmt.where(Salon.gender.in_([gender, SalonGender.both]))
 
     if lat is not None and lng is not None:
         point = ST_SetSRID(ST_MakePoint(lng, lat), 4326)
@@ -113,6 +118,7 @@ async def list_salons(
                 latitude=salon.latitude,
                 longitude=salon.longitude,
                 description=salon.description,
+                gender=salon.gender,
                 status=salon.status,
                 avg_rating=avg,
                 review_count=count,
@@ -168,6 +174,7 @@ async def create_salon(
         latitude=payload.latitude,
         longitude=payload.longitude,
         description=payload.description,
+        gender=payload.gender,
         status=SalonStatus.approved if user.role == UserRole.admin else SalonStatus.pending,
     )
     if payload.latitude is not None and payload.longitude is not None:

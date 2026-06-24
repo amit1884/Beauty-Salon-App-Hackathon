@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -11,9 +11,10 @@ from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import async_session
 from app.models.booking import AvailabilitySlot, Booking, BookingStatus
-from app.models.salon import Salon, SalonStatus, Service
+from app.models.salon import Salon, SalonGender, SalonStatus, Service
 from app.models.user import User, UserRole
 from app.routers.salons import _salon_rating_stats, _to_salon_out
 
@@ -34,18 +35,21 @@ async def _with_db(fn):
         return await fn(db)
 
 
-def _serialize_salon(salon: Salon, include_services: bool = True) -> dict[str, Any]:
+def _serialize_salon_list_item(salon: Salon) -> dict[str, Any]:
     avg, count = _salon_rating_stats(salon.reviews)
-    data: dict[str, Any] = {
+    return {
         "id": str(salon.id),
         "name": salon.name,
         "city": salon.city,
         "address": salon.address,
-        "description": salon.description,
-        "status": salon.status.value,
         "avg_rating": avg,
         "review_count": count,
     }
+
+
+def _serialize_salon(salon: Salon, include_services: bool = True) -> dict[str, Any]:
+    data = _serialize_salon_list_item(salon)
+    data["gender"] = salon.gender.value
     if include_services:
         data["services"] = [
             {
@@ -64,20 +68,113 @@ async def _get_user(db: AsyncSession, user_id: UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
+_SERVICE_STOP_WORDS = frozenset({"salon", "salons", "shop", "near", "in", "the", "a", "an", "and", "or", "for"})
+
+
+def _service_search_terms(service_type: str) -> list[str]:
+    return [
+        term
+        for term in service_type.lower().replace("-", " ").split()
+        if len(term) >= 3 and term not in _SERVICE_STOP_WORDS
+    ]
+
+
+def _matches_service_type(services: list[Service], service_type: str) -> bool:
+    needle = service_type.lower().strip()
+    if not needle:
+        return True
+    if any(needle in service.name.lower() for service in services):
+        return True
+    terms = _service_search_terms(needle)
+    if not terms:
+        return True
+    return any(any(term in service.name.lower() for term in terms) for service in services)
+
+
+def _normalize_city(city: str | None) -> str | None:
+    if not city:
+        return None
+    cleaned = city.strip().split(",")[0].split("-")[0].strip()
+    aliases = {"bombay": "Mumbai", "bengaluru": "Bangalore", "bangalore": "Bangalore"}
+    return aliases.get(cleaned.lower(), cleaned)
+
+
+async def ensure_future_slots(
+    db: AsyncSession,
+    *,
+    salon_id: UUID | None = None,
+    days: int | None = None,
+) -> int:
+    """Ensure each approved salon has open slots for the upcoming window (idempotent)."""
+    horizon = days if days is not None else settings.agent_slot_days
+    today = date.today()
+    end = today + timedelta(days=horizon)
+    slot_hours = (10, 12, 15, 17)
+
+    stmt = select(Salon).where(Salon.status == SalonStatus.approved)
+    if salon_id:
+        stmt = stmt.where(Salon.id == salon_id)
+    salons = (await db.execute(stmt)).scalars().all()
+
+    created = 0
+    for salon in salons:
+        for day_offset in range(horizon + 1):
+            slot_date = today + timedelta(days=day_offset)
+            if slot_date > end:
+                break
+            for hour in slot_hours:
+                slot_time = time(hour, 0)
+                row = (
+                    await db.execute(
+                        select(AvailabilitySlot.id)
+                        .where(
+                            AvailabilitySlot.salon_id == salon.id,
+                            AvailabilitySlot.slot_date == slot_date,
+                            AvailabilitySlot.slot_time == slot_time,
+                        )
+                        .limit(1)
+                    )
+                ).first()
+                if row:
+                    continue
+                db.add(
+                    AvailabilitySlot(
+                        salon_id=salon.id,
+                        slot_date=slot_date,
+                        slot_time=slot_time,
+                    )
+                )
+                created += 1
+    if created:
+        await db.flush()
+    return created
+
+
 async def search_salons(
     db: AsyncSession,
     *,
     city: str | None = None,
+    gender: str | None = None,
     service_type: str | None = None,
     min_rating: float | None = None,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
+    max_results = limit or settings.agent_search_limit
+    city = _normalize_city(city)
     stmt = (
         select(Salon)
         .where(Salon.status == SalonStatus.approved)
         .options(selectinload(Salon.reviews), selectinload(Salon.services))
+        .limit(max_results * 3)
     )
     if city:
         stmt = stmt.where(Salon.city.ilike(f"%{city}%"))
+    if gender:
+        try:
+            gender_enum = SalonGender(gender)
+            stmt = stmt.where(Salon.gender.in_([gender_enum, SalonGender.both]))
+        except ValueError:
+            pass
 
     result = await db.execute(stmt)
     salons = result.scalars().unique().all()
@@ -87,9 +184,11 @@ async def search_salons(
         if min_rating is not None and (avg is None or avg < min_rating):
             continue
         if service_type:
-            if not any(service_type.lower() in s.name.lower() for s in salon.services):
+            if not _matches_service_type(salon.services, service_type):
                 continue
-        output.append(_serialize_salon(salon, include_services=False))
+        output.append(_serialize_salon_list_item(salon))
+        if len(output) >= max_results:
+            break
     return output
 
 
@@ -111,13 +210,24 @@ async def list_available_slots(
     salon_id: UUID,
     slot_date: date | None = None,
 ) -> list[dict[str, Any]]:
+    from datetime import timedelta
+
     stmt = select(AvailabilitySlot).where(
         AvailabilitySlot.salon_id == salon_id,
         AvailabilitySlot.is_booked.is_(False),
     )
     if slot_date:
         stmt = stmt.where(AvailabilitySlot.slot_date == slot_date)
-    stmt = stmt.order_by(AvailabilitySlot.slot_date, AvailabilitySlot.slot_time)
+    else:
+        today = date.today()
+        end = today + timedelta(days=settings.agent_slot_days)
+        stmt = stmt.where(
+            AvailabilitySlot.slot_date >= today,
+            AvailabilitySlot.slot_date <= end,
+        )
+    stmt = stmt.order_by(AvailabilitySlot.slot_date, AvailabilitySlot.slot_time).limit(
+        settings.agent_slot_limit
+    )
     result = await db.execute(stmt)
     return [
         {
@@ -189,6 +299,7 @@ async def get_customer_bookings(db: AsyncSession, user_id: UUID) -> list[dict[st
         .join(AvailabilitySlot, Booking.slot_id == AvailabilitySlot.id)
         .where(Booking.customer_id == user_id)
         .order_by(Booking.created_at.desc())
+        .limit(10)
     )
     result = await db.execute(stmt)
     return [
@@ -226,6 +337,7 @@ async def create_salon_for_owner(
     description: str | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
+    gender: SalonGender = SalonGender.both,
 ) -> dict[str, Any]:
     user = await _get_user(db, owner_id)
     if not user or user.role not in (UserRole.owner, UserRole.admin):
@@ -239,6 +351,7 @@ async def create_salon_for_owner(
         description=description,
         latitude=latitude,
         longitude=longitude,
+        gender=gender,
         status=SalonStatus.approved if user.role == UserRole.admin else SalonStatus.pending,
     )
     db.add(salon)
@@ -321,10 +434,16 @@ async def get_owner_earnings(
     return {
         "total_earnings": round(total, 2),
         "booking_count": booking_count,
-        "by_month": [
-            {"period": k, "earnings": round(v["earnings"], 2), "bookings": v["bookings"]}
-            for k, v in sorted(by_month.items())
-        ],
+        **(
+            {}
+            if year is not None and month is not None
+            else {
+                "by_month": [
+                    {"period": k, "earnings": round(v["earnings"], 2), "bookings": v["bookings"]}
+                    for k, v in sorted(by_month.items())[-12:]
+                ]
+            }
+        ),
     }
 
 
@@ -398,20 +517,21 @@ async def get_admin_analytics(db: AsyncSession) -> dict[str, Any]:
         )
     ).all()
 
+    trends = [
+        {
+            "period": f"{int(row.year)}-{int(row.month):02d}",
+            "bookings": int(row.bookings),
+            "revenue": round(float(row.revenue or 0), 2),
+        }
+        for row in monthly
+    ]
     return {
         "total_users": users,
         "total_salons": salons,
         "pending_salons": pending,
         "total_bookings": bookings,
         "platform_revenue": round(float(revenue or 0), 2),
-        "monthly_trends": [
-            {
-                "period": f"{int(row.year)}-{int(row.month):02d}",
-                "bookings": int(row.bookings),
-                "revenue": round(float(row.revenue or 0), 2),
-            }
-            for row in monthly
-        ],
+        "monthly_trends": trends[-6:],
     }
 
 
@@ -434,7 +554,6 @@ async def list_admin_clients(db: AsyncSession, limit: int = 20) -> list[dict[str
         {
             "id": str(row.id),
             "name": row.name,
-            "email": row.email,
             "role": row.role.value,
             "booking_count": int(row.booking_count or 0),
         }
@@ -443,17 +562,27 @@ async def list_admin_clients(db: AsyncSession, limit: int = 20) -> list[dict[str
 
 
 async def list_admin_salons(db: AsyncSession, status: str | None = None) -> list[dict[str, Any]]:
-    stmt = select(Salon).options(selectinload(Salon.services), selectinload(Salon.reviews))
+    stmt = select(Salon).options(selectinload(Salon.reviews))
     if status:
         stmt = stmt.where(Salon.status == SalonStatus(status))
-    stmt = stmt.order_by(Salon.created_at.desc())
+    stmt = stmt.order_by(Salon.created_at.desc()).limit(15)
     result = await db.execute(stmt)
-    return [_serialize_salon(s) for s in result.scalars().unique().all()]
+    return [
+        {**_serialize_salon_list_item(s), "status": s.status.value}
+        for s in result.scalars().unique().all()
+    ]
 
 
 # Sync wrappers for MCP tools (run in thread pool)
-def tool_search_salons(city: str | None = None, service_type: str | None = None, min_rating: float | None = None):
-    return _run_async(_with_db(lambda db: search_salons(db, city=city, service_type=service_type, min_rating=min_rating)))
+def tool_search_salons(
+    city: str | None = None,
+    gender: str | None = None,
+    service_type: str | None = None,
+    min_rating: float | None = None,
+):
+    return _run_async(
+        _with_db(lambda db: search_salons(db, city=city, gender=gender, service_type=service_type, min_rating=min_rating))
+    )
 
 
 def tool_get_salon(salon_id: str):
@@ -487,7 +616,15 @@ def tool_owner_salons(owner_id: str):
     return _run_async(_with_db(lambda db: get_owner_salons(db, UUID(owner_id))))
 
 
-def tool_create_salon(owner_id: str, name: str, city: str, address: str, description: str | None = None):
+def tool_create_salon(
+    owner_id: str,
+    name: str,
+    city: str,
+    address: str,
+    description: str | None = None,
+    gender: str = "both",
+):
+    gender_enum = SalonGender(gender) if gender in SalonGender._value2member_map_ else SalonGender.both
     return _run_async(
         _with_db(
             lambda db: create_salon_for_owner(
@@ -497,6 +634,7 @@ def tool_create_salon(owner_id: str, name: str, city: str, address: str, descrip
                 city=city,
                 address=address,
                 description=description,
+                gender=gender_enum,
             )
         )
     )

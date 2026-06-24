@@ -1,9 +1,11 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.config import settings
 from app.models.user import User
 from app.schemas.agent import ChatRequest, ChatResponse
-from app.services.agent_runner import run_chat
+from app.services.agent_runner import AgentLlmError, run_chat
 from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -23,14 +25,22 @@ async def chat(
     if not payload.message.strip() and not payload.action:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message or action required")
 
-    session_id, message, role, ui_blocks = await run_chat(
-        user_id=str(user.id),
-        role=user.role.value,
-        message=payload.message,
-        session_id=payload.session_id,
-        action=payload.action,
-        action_payload=payload.action_payload,
-    )
+    try:
+        session_id, message, role, ui_blocks = await run_chat(
+            user_id=str(user.id),
+            role=user.role.value,
+            message=payload.message,
+            session_id=payload.session_id,
+            action=payload.action,
+            action_payload=payload.action_payload,
+        )
+    except AgentLlmError as exc:
+        return ChatResponse(
+            session_id=payload.session_id or str(uuid.uuid4()),
+            message=exc.user_message,
+            ui_blocks=[],
+            role=user.role.value,
+        )
 
     return ChatResponse(
         session_id=session_id,

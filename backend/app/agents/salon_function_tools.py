@@ -7,11 +7,23 @@ from uuid import UUID
 
 from google.adk.tools.tool_context import ToolContext
 
+from app.models.salon import SalonGender
 from app.services import agent_tools
 
 
+def _session_state(tool_context: ToolContext) -> dict[str, Any]:
+    """ADK State is not dict()-convertible; use to_dict() or .get()."""
+    state = tool_context.state
+    if hasattr(state, "to_dict"):
+        return state.to_dict()
+    return {
+        "user_id": state.get("user_id"),
+        "user_role": state.get("user_role"),
+    }
+
+
 def _actor(tool_context: ToolContext) -> tuple[str, str]:
-    state = dict(tool_context.state)
+    state = _session_state(tool_context)
     user_id = state.get("user_id")
     role = state.get("user_role")
     if not user_id or not role:
@@ -28,10 +40,13 @@ async def search_salons(
     city: str | None = None,
     service_type: str | None = None,
     min_rating: float | None = None,
+    gender: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search approved salons by city, service keyword, or minimum rating."""
+    """Search approved salons by city, service keyword, gender, or minimum rating."""
     return await agent_tools._with_db(
-        lambda db: agent_tools.search_salons(db, city=city, service_type=service_type, min_rating=min_rating)
+        lambda db: agent_tools.search_salons(
+            db, city=city, gender=gender, service_type=service_type, min_rating=min_rating
+        )
     )
 
 
@@ -90,6 +105,7 @@ async def create_salon(
     address: str,
     tool_context: ToolContext,
     description: str | None = None,
+    gender: str = "both",
 ) -> dict[str, Any]:
     """Register a new salon for the authenticated owner (pending admin approval)."""
     user_id, role = _actor(tool_context)
@@ -102,6 +118,7 @@ async def create_salon(
             city=city,
             address=address,
             description=description,
+            gender=SalonGender(gender) if gender in SalonGender._value2member_map_ else SalonGender.both,
         )
     )
 
@@ -185,7 +202,7 @@ CUSTOMER_TOOLS = [
     get_my_bookings,
 ]
 
-OWNER_TOOLS = CUSTOMER_TOOLS + [
+OWNER_TOOLS = [
     get_owner_salons,
     create_salon,
     add_salon_service,
@@ -193,8 +210,9 @@ OWNER_TOOLS = CUSTOMER_TOOLS + [
     compare_owner_earnings,
 ]
 
-ADMIN_TOOLS = OWNER_TOOLS + [
+ADMIN_TOOLS = [
     get_platform_analytics,
     list_top_clients,
     list_salons_admin,
+    get_salon_details,
 ]

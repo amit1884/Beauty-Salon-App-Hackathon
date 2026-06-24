@@ -2,7 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.salon import SalonStatus
+from app.models.salon import SalonStatus, SalonGender
 
 
 class ServiceCreate(BaseModel):
@@ -27,6 +27,7 @@ class SalonCreate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     description: str | None = None
+    gender: SalonGender = SalonGender.both
 
 
 class SalonUpdate(BaseModel):
@@ -36,6 +37,7 @@ class SalonUpdate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     description: str | None = None
+    gender: SalonGender | None = None
     status: SalonStatus | None = None
 
 
@@ -48,6 +50,7 @@ class SalonOut(BaseModel):
     latitude: float | None
     longitude: float | None
     description: str | None
+    gender: SalonGender
     status: SalonStatus
     services: list[ServiceOut] = []
     avg_rating: float | None = None
@@ -64,6 +67,7 @@ class SalonListOut(BaseModel):
     latitude: float | None
     longitude: float | None
     description: str | None
+    gender: SalonGender
     status: SalonStatus
     avg_rating: float | None = None
     review_count: int = 0

@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { MapPin, Star, ChevronRight, Sparkles } from 'lucide-react';
 import type { Salon } from '../lib/api';
-import { cn, formatPrice, salonGradient } from '../lib/utils';
+import { cn, formatPrice, formatSalonGender, salonGradient } from '../lib/utils';
 
 interface SalonCardProps {
   salon: Salon;
@@ -25,7 +25,10 @@ export default function SalonCard({ salon, index = 0 }: SalonCardProps) {
         <article className="relative overflow-hidden rounded-2xl bg-white border border-stone-100/80 shadow-sm hover:shadow-xl hover:shadow-brand-600/10 transition-all duration-300 hover:-translate-y-1">
           <div className={cn('relative h-44 bg-linear-to-br overflow-hidden', gradient)}>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_50%)]" />
-            <div className="absolute top-3 right-3">
+            <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-xs font-medium text-stone-700 shadow-sm">
+                {formatSalonGender(salon.gender)}
+              </span>
               {salon.avg_rating != null ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 backdrop-blur text-sm font-semibold text-stone-800 shadow-sm">
                   <Star className="w-3.5 h-3.5 fill-gold-400 text-gold-400" />

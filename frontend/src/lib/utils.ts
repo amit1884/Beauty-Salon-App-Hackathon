@@ -7,6 +7,8 @@ const GRADIENTS = [
   'from-fuchsia-400 via-pink-500 to-rose-600',
 ];
 
+import type { SalonGender } from './api';
+
 export function salonGradient(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -46,3 +48,13 @@ export const SERVICE_CATEGORIES = [
   { label: 'Spa', value: 'spa' },
   { label: 'Makeup', value: 'makeup' },
 ];
+
+export const SALON_GENDER_OPTIONS: { label: string; value: SalonGender }[] = [
+  { label: 'Women', value: 'female' },
+  { label: 'Men', value: 'male' },
+  { label: 'Unisex', value: 'both' },
+];
+
+export function formatSalonGender(gender: SalonGender | undefined): string {
+  return SALON_GENDER_OPTIONS.find((o) => o.value === (gender ?? 'both'))?.label ?? 'Unisex';
+}

@@ -9,6 +9,7 @@ import AccountPage from './pages/AccountPage';
 import OwnerDashboardPage from './pages/OwnerDashboardPage';
 import AdminPage from './pages/AdminPage';
 import ChatPage from './pages/ChatPage';
+import { CityProvider } from './context/CityContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -45,7 +46,8 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
+        <CityProvider>
+          <Routes>
           <Route element={<Layout />}>
             <Route index element={<HomeRoute />} />
             <Route path="dashboard" element={
@@ -64,7 +66,8 @@ export default function App() {
               <ProtectedRoute><AccountPage /></ProtectedRoute>
             } />
           </Route>
-        </Routes>
+          </Routes>
+        </CityProvider>
       </BrowserRouter>
     </AuthProvider>
   );

@@ -11,8 +11,10 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSelectedCity } from '../hooks/useSelectedCity';
+import { homePathWithCity } from '../lib/cityStorage';
 import { cn } from '../lib/utils';
-import GlobalSearch from './GlobalSearch';
+import CitySelector from './CitySelector';
 
 type NavItem = {
   to: string;
@@ -30,11 +32,11 @@ function withAssistant(items: NavItem[]): NavItem[] {
   return [...items.slice(0, idx), chat, ...items.slice(idx)];
 }
 
-function getNavItems(role?: string): NavItem[] {
+function getNavItems(role?: string, homeTo = '/'): NavItem[] {
   if (role === 'admin') {
     return withAssistant([
       { to: '/admin', label: 'Moderation', icon: Shield },
-      { to: '/', label: 'Browse Salons', icon: Home, end: true },
+      { to: homeTo, label: 'Browse Salons', icon: Home, end: true },
       { to: '/account', label: 'Profile', icon: User, auth: true },
     ]);
   }
@@ -42,12 +44,12 @@ function getNavItems(role?: string): NavItem[] {
     return withAssistant([
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/bookings', label: 'Incoming Bookings', icon: CalendarDays },
-      { to: '/', label: 'Browse Salons', icon: Home, end: true },
+      { to: homeTo, label: 'Browse Salons', icon: Home, end: true },
       { to: '/account', label: 'Profile', icon: User, auth: true },
     ]);
   }
   return withAssistant([
-    { to: '/', label: 'Discover', icon: Home, end: true },
+    { to: homeTo, label: 'Discover', icon: Home, end: true },
     { to: '/bookings', label: 'My Bookings', icon: CalendarDays },
     { to: '/account', label: 'Profile', icon: User, auth: true },
     { to: '/login', label: 'Sign In', icon: User, guest: true },
@@ -56,7 +58,8 @@ function getNavItems(role?: string): NavItem[] {
 
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth();
-  const navItems = getNavItems(user?.role);
+  const { city } = useSelectedCity();
+  const navItems = getNavItems(user?.role, homePathWithCity(city));
 
   return (
     <nav className="flex flex-col gap-1.5">
@@ -111,6 +114,8 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 function MobileNav() {
   const { user } = useAuth();
+  const { city } = useSelectedCity();
+  const homeTo = homePathWithCity(city);
   const isOwner = user?.role === 'owner';
   const isAdmin = user?.role === 'admin';
 
@@ -118,7 +123,7 @@ function MobileNav() {
     ? [
         { to: '/admin', label: 'Admin', icon: Shield },
         { to: '/chat', label: 'AI', icon: MessageCircle },
-        { to: '/', label: 'Browse', icon: Home, end: true },
+        { to: homeTo, label: 'Browse', icon: Home, end: true },
         { to: '/account', label: 'Profile', icon: User },
       ]
     : isOwner
@@ -129,7 +134,7 @@ function MobileNav() {
         { to: '/account', label: 'Profile', icon: User },
       ]
     : [
-        { to: '/', label: 'Home', icon: Home, end: true },
+        { to: homeTo, label: 'Home', icon: Home, end: true },
         { to: '/chat', label: 'AI', icon: MessageCircle },
         { to: '/bookings', label: 'Bookings', icon: CalendarDays },
         { to: user ? '/account' : '/login', label: user ? 'Profile' : 'Sign In', icon: User },
@@ -178,7 +183,7 @@ export default function Layout() {
   const isChatPage = location.pathname === '/chat';
   const isOwner = user?.role === 'owner';
   const isAdmin = user?.role === 'admin';
-  const showSearch = (!isOwner && !isAdmin || location.pathname === '/') && !isChatPage;
+  const showCitySelector = (!isOwner && !isAdmin || location.pathname === '/') && !isChatPage;
 
   if (isLoginPage) {
     return (
@@ -245,12 +250,12 @@ export default function Layout() {
               </div>
             )}
           </div>
-          {showSearch && <GlobalSearch compact />}
+          {showCitySelector && <CitySelector />}
         </header>
 
         <header className="hidden md:flex sticky top-0 z-40 glass border-b border-stone-200/60 px-8 py-4 items-center justify-between gap-6">
-          {showSearch ? (
-            <GlobalSearch />
+          {showCitySelector ? (
+            <CitySelector />
           ) : isChatPage ? (
             <p className="text-sm text-stone-500">AI Assistant</p>
           ) : (

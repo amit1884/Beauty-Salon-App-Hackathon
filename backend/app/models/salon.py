@@ -16,6 +16,12 @@ class SalonStatus(str, enum.Enum):
     rejected = "rejected"
 
 
+class SalonGender(str, enum.Enum):
+    male = "male"
+    female = "female"
+    both = "both"
+
+
 class Salon(Base):
     __tablename__ = "salons"
 
@@ -28,6 +34,7 @@ class Salon(Base):
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     location: Mapped[str | None] = mapped_column(Geography(geometry_type="POINT", srid=4326), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gender: Mapped[SalonGender] = mapped_column(Enum(SalonGender), default=SalonGender.both)
     status: Mapped[SalonStatus] = mapped_column(Enum(SalonStatus), default=SalonStatus.pending)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

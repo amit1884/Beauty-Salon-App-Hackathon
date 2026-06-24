@@ -11,6 +11,8 @@ export interface User {
   created_at: string;
 }
 
+export type SalonGender = 'male' | 'female' | 'both';
+
 export interface Salon {
   id: string;
   owner_id?: string;
@@ -20,6 +22,7 @@ export interface Salon {
   latitude: number | null;
   longitude: number | null;
   description: string | null;
+  gender: SalonGender;
   status: string;
   services?: Service[];
   avg_rating: number | null;
@@ -73,6 +76,7 @@ export interface SalonCreatePayload {
   latitude?: number | null;
   longitude?: number | null;
   description?: string | null;
+  gender?: SalonGender;
 }
 
 export type ChatActionPayload = Record<string, string | number | boolean | null | undefined>;

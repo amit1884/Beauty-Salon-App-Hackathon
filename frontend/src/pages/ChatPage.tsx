@@ -89,16 +89,31 @@ export default function ChatPage() {
   return (
     <div className="flex flex-1 flex-col min-h-0 max-w-3xl mx-auto w-full">
       <header className="shrink-0 pb-3 mb-1 border-b border-stone-200/80">
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-brand-100 text-brand-700">
-            <Sparkles className="w-5 h-5" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-brand-100 text-brand-700">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="font-display text-xl md:text-2xl font-semibold text-stone-900">AI Assistant</h1>
+              <p className="text-sm text-stone-500 capitalize">
+                {role} mode — book, manage, or analyze via chat
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-display text-xl md:text-2xl font-semibold text-stone-900">AI Assistant</h1>
-            <p className="text-sm text-stone-500 capitalize">
-              {role} mode — book, manage, or analyze via chat
-            </p>
-          </div>
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setMessages([]);
+                setSessionId(undefined);
+                setError(null);
+              }}
+              className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 hover:border-brand-300 hover:text-brand-700 transition-colors"
+            >
+              New chat
+            </button>
+          )}
         </div>
       </header>
 

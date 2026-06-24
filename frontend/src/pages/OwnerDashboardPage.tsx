@@ -12,13 +12,13 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { api, type Booking, type Salon, type Service, type Slot } from '../lib/api';
+import { api, type Booking, type Salon, type SalonGender, type Service, type Slot } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { Skeleton } from '../components/ui/Skeleton';
 import BookingCard from '../components/BookingCard';
-import { cn, formatDate, formatPrice, formatTime } from '../lib/utils';
+import { cn, formatDate, formatPrice, formatSalonGender, formatTime, SALON_GENDER_OPTIONS } from '../lib/utils';
 
 type Tab = 'overview' | 'services' | 'slots' | 'profile';
 
@@ -40,7 +40,7 @@ export default function OwnerDashboardPage() {
 
   // Create salon form
   const [salonForm, setSalonForm] = useState({
-    name: '', city: '', address: '', description: '',
+    name: '', city: '', address: '', description: '', gender: 'both' as SalonGender,
   });
 
   // Service form
@@ -92,9 +92,10 @@ export default function OwnerDashboardPage() {
         city: salonForm.city,
         address: salonForm.address,
         description: salonForm.description || null,
+        gender: salonForm.gender,
       });
       setMessage('Salon created! It will appear in search once approved.');
-      setSalonForm({ name: '', city: '', address: '', description: '' });
+      setSalonForm({ name: '', city: '', address: '', description: '', gender: 'both' });
       await loadSalonData(created);
       setTab('services');
     } catch (err) {
@@ -196,6 +197,26 @@ export default function OwnerDashboardPage() {
             <label className="text-sm font-medium text-stone-700">Description</label>
             <textarea className="mt-1 w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none h-24"
               value={salonForm.description} onChange={(e) => setSalonForm({ ...salonForm, description: e.target.value })} placeholder="Tell customers about your salon..." />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-stone-700">Serves</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SALON_GENDER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSalonForm({ ...salonForm, gender: option.value })}
+                  className={cn(
+                    'px-4 py-2 rounded-full text-sm font-medium border transition-all',
+                    salonForm.gender === option.value
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white text-stone-600 border-stone-200 hover:border-brand-300',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <Button type="submit" loading={saving} size="lg" className="w-full">
@@ -403,6 +424,7 @@ export default function OwnerDashboardPage() {
             { label: 'Name', value: salon.name },
             { label: 'City', value: salon.city },
             { label: 'Address', value: salon.address },
+            { label: 'Serves', value: formatSalonGender(salon.gender) },
             { label: 'Status', value: salon.status },
             { label: 'Reviews', value: `${salon.review_count} (${salon.avg_rating ?? 'N/A'}★)` },
           ].map((row) => (

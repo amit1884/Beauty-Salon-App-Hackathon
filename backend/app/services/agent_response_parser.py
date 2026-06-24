@@ -53,6 +53,13 @@ def parse_agent_response(data: Any) -> AgentChatResponse | None:
         return None
 
 
+def parse_model_output(data: Any) -> str | None:
+    payload = _unwrap_payload(data)
+    if isinstance(payload, dict) and "message" in payload:
+        return str(payload["message"])
+    return None
+
+
 def parse_json_message(text: str) -> AgentChatResponse | None:
     if not text or not text.strip().startswith("{"):
         return None
@@ -70,7 +77,6 @@ def parse_json_message(text: str) -> AgentChatResponse | None:
 def extract_structured_from_events(events) -> AgentChatResponse | None:
     """Extract structured chat response from ADK runner events."""
     for event in reversed(list(events)):
-        # set_model_response tool result
         if event.content and event.content.parts:
             for part in event.content.parts:
                 fr = part.function_response
@@ -79,7 +85,6 @@ def extract_structured_from_events(events) -> AgentChatResponse | None:
                     if parsed:
                         return parsed
 
-        # ADK may attach structured output on actions
         actions = getattr(event, "actions", None)
         if actions is not None:
             smr = getattr(actions, "set_model_response", None)
@@ -88,12 +93,14 @@ def extract_structured_from_events(events) -> AgentChatResponse | None:
                 if parsed:
                     return parsed
 
-        # Final model text may be JSON from output_schema processor
         if event.content and event.content.parts:
             for part in event.content.parts:
                 if part.text:
                     parsed = parse_json_message(part.text)
                     if parsed:
                         return parsed
+                    msg = parse_model_output(part.text)
+                    if msg:
+                        return AgentChatResponse(message=msg, ui_blocks=[])
 
     return None

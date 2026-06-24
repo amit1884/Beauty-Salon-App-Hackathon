@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     mcp_server_url: str = "http://127.0.0.1:8000/mcp"
     llm_model: str = "gemini-2.5-flash"
+    llm_model_fallback: str = "gemini-2.5-flash-lite"
+    agent_session_max_events: int = 20
+    agent_search_limit: int = 10
+    agent_slot_days: int = 7
+    agent_slot_limit: int = 24
 
     @property
     def cors_origin_list(self) -> list[str]:
