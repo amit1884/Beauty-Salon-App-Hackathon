@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? '';
+/** Strip trailing slashes so `${API_BASE}/api/...` never becomes `//api/...`. */
+const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
 
 export type UserRole = 'customer' | 'owner' | 'admin';
 
