@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.mcp.server import mcp
 from app.routers import admin, agent, auth, bookings, reviews, salons
 
@@ -12,6 +13,7 @@ if settings.google_api_key:
 
     os.environ.setdefault("GOOGLE_API_KEY", settings.google_api_key)
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

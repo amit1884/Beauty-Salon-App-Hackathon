@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     agent_search_limit: int = 10
     agent_slot_days: int = 7
     agent_slot_limit: int = 24
+    rate_limit_enabled: bool = True
+    rate_limit_per_minute: int = 120
+    rate_limit_write_per_minute: int = 40
+    rate_limit_auth_per_minute: int = 10
+    rate_limit_agent_per_minute: int = 20
 
     @property
     def cors_origin_list(self) -> list[str]:
